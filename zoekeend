@@ -1,0 +1,600 @@
+#!/usr/bin/env python
+
+"""
+Zoekeend experimental information retrieval system using DuckDB
+Copyright (C) 2024 Djoerd Hiemstra
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+Contact: hiemstra@cs.ru.nl
+"""
+
+import argparse
+import pathlib
+import sys
+
+import duckdb
+import ir_datasets
+
+import ze_eval
+
+
+ze_datasets = {
+    "rb04": "disks45/nocr/trec-robust-2004",
+    "msm2": "msmarco-passage",
+    "msm2dev": "msmarco-passage/trec-dl-2019/judged",
+    "msm2tst": "msmarco-passage/trec-dl-2020/judged",
+    "cran": "cranfield",
+}
+
+
+def fatal(message):
+    """Print error message and exit."""
+    print(message, file=sys.stderr)
+    sys.exit(1)
+
+
+# TODO: def zoekeend_index_bydict(args):
+# index_bydict test.db dataset --in dictionary --out dictionary
+#    --max_size 99999 --algorithm bytepair --dryrun
+#  out dictionary is dictionary for future index, if called again.
+
+# TODO: add to ze_search: report query cross entropy and Cost-in-Postings.
+
+
+def zoekeend_index(args):
+    """
+    Create the index file for an Information Retrieval dataset.
+    This index uses the standard DuckDB FTS extension. Based on:
+    Hannes Mühleisen, Thaer Samar, Jimmy Lin, and Arjen de Vries, Old dogs
+    are great at new tricks: Column stores for IR prototyping. In SIGIR 2014.
+    """
+    import ze_index  # defer imports, so no dependencies needed, unless used
+
+    if args.dataset in ze_datasets:
+        args.dataset = ze_datasets[args.dataset]
+    try:
+        if args.dataset == "custom":
+            ir_dataset = ze_eval.ir_dataset_test()
+        else:
+            ir_dataset = ir_datasets.load(args.dataset)
+        ze_index.index_documents(
+            args.dbname,
+            ir_dataset,
+            stemmer=args.wordstemmer,
+            stopwords=args.stopwords,
+            keepcontent=args.keep_content,
+        )
+    except ValueError as e:
+        fatal(e)
+    except KeyError as e:
+        fatal("Unknown dataset: " + str(e))
+
+
+def zoekeend_search(args):
+    """
+    Run queries and create a run file in TREC output.
+    The language model (lm) is based on: Djoerd Hiemstra, A probabilistic
+    justification for using tf.idf term weighting in information retrieval,
+    International Journal on Digital Libraries 3(2), 2000.
+    """
+    import ze_search
+
+    if not pathlib.Path(args.dbname).is_file():
+        fatal(f"Error: file {args.dbname} does not exist")
+    if args.out and pathlib.Path(args.out).is_file():
+        fatal(f"Error: file {args.out} exists")
+    if args.queries in ze_datasets:
+        query_tag = ze_datasets[args.queries]
+    else:
+        query_tag = args.queries
+    try:
+        ze_search.search_run(
+            args.dbname,
+            query_tag,
+            matcher=args.match,
+            run_tag=args.run,
+            k=args.bm25k,
+            b=args.bm25b,
+            limit=args.top,
+            fileout=args.out,
+            startq=args.start,
+            endq=args.end,
+        )
+    except FileNotFoundError:
+        fatal(f"Error: queryset '{args.queries}' does not exist.")
+    except ValueError as e:
+        fatal(e)
+
+
+def zoekeend_eval(args):
+    """Evaluate run using trec_eval"""
+    import ze_eval
+
+    if args.queries in ze_datasets:
+        query_tag = ze_datasets[args.queries]
+    else:
+        query_tag = args.queries
+    try:
+        ze_eval.trec_eval(
+            args.run, query_tag, args.complete_rel, args.ndcg, args.query_eval
+        )
+    except (KeyError, AttributeError):
+        fatal(f"Error: query/qrel set '{args.queries}' does not exist.")
+    except ValueError as e:
+        fatal(e)
+
+
+def zoekeend_vacuum(args):
+    """Vacuum index to reclaim disk space."""
+    import ze_vacuum
+
+    try:
+        ze_vacuum.reclaim_disk_space(args.dbname, args.cluster)
+    except (ValueError, FileNotFoundError):
+        fatal(f"File not found: {args.dbname}")
+
+
+def zoekeend_index_import(args):
+    """
+    Import a CIFF (Common Index File Format) index.
+    Based on: Djoerd Hiemstra, Gijs Hendriksen, Chris Kamphuis, and
+    Arjen de Vries, Challenges of index exchange for search engine
+    interoperability, OSSYM 2023. (see also: zoekeend index_export)
+    """
+    import ze_index_import
+
+    if pathlib.Path(args.dbname).is_file():
+        fatal(f"Error: file {args.dbname} exists")
+    if not pathlib.Path(args.ciff_file).is_file():
+        fatal(f"Error: file {args.ciff_file} does not exist")
+    try:
+        ze_index_import.ciff_import(
+            args.dbname,
+            args.ciff_file,
+            tokenizer=args.tokenizer,
+            stemmer=args.wordstemmer,
+        )
+    except ValueError as e:
+        fatal("Error in CIFF import: " + str(e))
+
+
+def zoekeend_index_export(args):
+    """
+    Export a CIFF (Common Index File Format) index.
+    Based on: Jimmy Lin, Joel Mackenzie, Chris Kamphuis, Craig Macdonald,
+    Antonio Mallia, Michał Siedlaczek, Andrew Trotman, and Arjen de Vries.
+    Supporting interoperability between open-source search engines with the
+    common index file format, SIGIR 2020; (see also: zoekeend index_import)
+    """
+    import ze_index_export
+
+    if not pathlib.Path(args.dbname).is_file():
+        fatal(f"Error: file {args.dbname} does not exist")
+    if pathlib.Path(args.ciff_file).is_file():
+        fatal(f"Error: file {args.ciff_file} exists")
+    try:
+        ze_index_export.ciff_export(
+            args.dbname,
+            args.ciff_file,
+            description=args.description,
+            batch_size=args.batch_size,
+        )
+    except ValueError as e:
+        fatal("Error in CIFF export: " + str(e))
+
+
+def zoekeend_reindex_prior(args):
+    """
+    Recreate the index by including prior (static rank) scores.
+    Based on: Wessel Kraaij, Thijs Westerveld and Djoerd Hiemstra,
+    The Importance of Prior Probabilities for Entry Page Search,
+    SIGIR 2002.
+    """
+    import ze_reindex_prior
+
+    if not pathlib.Path(args.dbname_in).is_file():
+        fatal(f"Error: file {args.dbname_in} does not exist")
+    if pathlib.Path(args.dbname_out).is_file():
+        fatal(f"Error: file {args.dbname_out} exists")
+    try:
+        ze_reindex_prior.reindex_prior(
+            args.dbname_in,
+            args.dbname_out,
+            csv_file=args.file,
+            default=args.default,
+            init=args.init,
+        )
+    except Exception as e:
+        fatal("Error in reindex prior: " + str(e))
+
+
+def zoekeend_reindex_fitted(args):
+    """
+    Recreate the index using by fitting document lengths (len) or prior
+    scores (prior) using linear regression. The length / prior scores
+    are removed from the new index.
+    """
+    import ze_reindex_fitted
+
+    if not pathlib.Path(args.dbname_in).is_file():
+        fatal(f"Error: file {args.dbname_in} does not exist")
+    if pathlib.Path(args.dbname_out).is_file():
+        fatal(f"Error: file {args.dbname_out} exists")
+    if args.qrls in ze_datasets:
+        args.qrls = ze_datasets[args.qrls]
+    try:
+        ze_reindex_fitted.reindex_fitted_column(
+            args.dbname_in,
+            args.dbname_out,
+            column=args.column,
+            total=args.bins,
+            print_sample=args.print,
+            threshold=args.threshold,
+            qrels=args.qrls,
+        )
+    except ValueError as e:
+        fatal("Error in reindex fitted: " + str(e))
+
+
+def zoekeend_reindex_const(args):
+    """
+    Recreate the index using by rescaling term frequencies such that all
+    documents get an artificial length of CONST, using a normalization
+    weight beta inspired by BM25 document length normalization.
+    """
+    import ze_reindex_const
+
+    if not pathlib.Path(args.dbname_in).is_file():
+        fatal(f"Error: file {args.dbname_in} does not exist")
+    if pathlib.Path(args.dbname_out).is_file():
+        fatal(f"Error: file {args.dbname_out} exists")
+    try:
+        ze_reindex_const.reindex_const(
+            args.dbname_in,
+            args.dbname_out,
+            const_len=args.const,
+            b=args.beta,
+            keep_terms=args.keepterms,
+        )
+    except ValueError as e:
+        fatal("Error in reindex const: " + str(e))
+
+
+global_parser = argparse.ArgumentParser(prog="zoekeend")
+global_parser.add_argument(
+    "-v",
+    "--version",
+    action="version",
+    version="zoekeend v0.0.1 (using duckdb v" + duckdb.__version__ + ")",
+)
+subparsers = global_parser.add_subparsers(metavar="subexperiment ...")
+
+
+index_parser = subparsers.add_parser(
+    "index",
+    help="create the index file for an IR dataset",
+    description=zoekeend_index.__doc__,
+)
+index_parser.set_defaults(func=zoekeend_index)
+index_parser.add_argument(
+    "dbname",
+    help="file name of index",
+)
+index_parser.add_argument(
+    "dataset",
+    help="ir_dataset, see: https://ir-datasets.com",
+)
+index_parser.add_argument(
+    "-w",
+    "--wordstemmer",
+    help="word stemmer (default: none)",
+    default="none",
+    choices=["none", "porter", "dutch"],
+)
+index_parser.add_argument(
+    "-s",
+    "--stopwords",
+    help="stop words (default: none)",
+    default="none",
+    choices=["none", "english"],
+)
+index_parser.add_argument(
+    "-k",
+    "--keep_content",
+    help="keep the document content column",
+    action="store_true",
+)
+
+
+reindex_prior_parser = subparsers.add_parser(
+    "reindex_prior",
+    help="recreate the index including prior scores",
+    description=zoekeend_reindex_prior.__doc__,
+)
+reindex_prior_parser.set_defaults(func=zoekeend_reindex_prior)
+reindex_prior_parser.add_argument(
+    "dbname_in",
+    help="file name of old index",
+)
+reindex_prior_parser.add_argument(
+    "dbname_out",
+    help="file name of new index with priors",
+)
+reindex_prior_parser.add_argument(
+    "-i",
+    "--init",
+    help="initialize with standard prior ('len' or 'uniform')",
+    choices=["len", "uniform"],
+)
+reindex_prior_parser.add_argument(
+    "-f",
+    "--file",
+    help="file with comma-separated (did,prior) pairs",
+)
+reindex_prior_parser.add_argument(
+    "-d",
+    "--default",
+    help="default prior for documents missing in the file",
+    type=float,
+)
+
+
+reindex_fitted_parser = subparsers.add_parser(
+    "reindex_fitted",
+    help="recreate the index by fitting prior scores",
+    description=zoekeend_reindex_fitted.__doc__,
+)
+reindex_fitted_parser.set_defaults(func=zoekeend_reindex_fitted)
+reindex_fitted_parser.add_argument(
+    "dbname_in",
+    help="file name of old index",
+)
+reindex_fitted_parser.add_argument(
+    "dbname_out",
+    help="file name of new fitted index",
+)
+reindex_fitted_parser.add_argument(
+    "-c",
+    "--column",
+    help="column to be used for fitting (default: prior)",
+    default="prior",
+    choices=["len", "prior"],
+)
+reindex_fitted_parser.add_argument(
+    "-b",
+    "--bins",
+    help="number of bins",
+    type=int,
+)
+reindex_fitted_parser.add_argument(
+    "-p",
+    "--print",
+    help="print sample used for fitting",
+    action="store_true",
+)
+reindex_fitted_parser.add_argument(
+    "-q",
+    "--qrls",
+    help="training queries/qrels",
+)
+reindex_fitted_parser.add_argument(
+    "-t",
+    "--threshold",
+    help="prior values <= threshold are ignored (default: 0)",
+    default=0,
+    type=int,
+)
+
+
+reindex_const_parser = subparsers.add_parser(
+    "reindex_const",
+    help="recreate the index by rescaling term frequencies",
+    description=zoekeend_reindex_const.__doc__,
+)
+reindex_const_parser.set_defaults(func=zoekeend_reindex_const)
+reindex_const_parser.add_argument(
+    "dbname_in",
+    help="file name of old index",
+)
+reindex_const_parser.add_argument(
+    "dbname_out",
+    help="file name of new fitted index",
+)
+reindex_const_parser.add_argument(
+    "-c",
+    "--const",
+    help="constant document length (default: 400)",
+    type=int,
+    default=400,
+)
+reindex_const_parser.add_argument(
+    "-b",
+    "--beta",
+    help="length normalization parameter (default: 1.0)",
+    type=float,
+    default=1.0,
+)
+reindex_const_parser.add_argument(
+    "-k",
+    "--keepterms",
+    action="store_true",
+    help="keep all terms, even if new tf is small",
+)
+
+
+search_parser = subparsers.add_parser(
+    "search",
+    help="execute queries and create run output",
+    description=zoekeend_search.__doc__,
+)
+search_parser.set_defaults(func=zoekeend_search)
+search_parser.add_argument(
+    "dbname",
+    help="file name of index",
+)
+search_parser.add_argument(
+    "queries",
+    help="ir_dataset queries id or tab-separated query file",
+)
+search_parser.add_argument(
+    "-r",
+    "--run",
+    help="run tag",
+)
+search_parser.add_argument(
+    "-t",
+    "--top",
+    type=int,
+    default=1000,
+    help="amount of top results (default: 1000)",
+)
+search_parser.add_argument(
+    "-o", "--out", help="the run file to be outputted (default: stdout)"
+)
+search_parser.add_argument(
+    "-m",
+    "--match",
+    help="match function: languge models (default) or bm25",
+    default="lm",
+    choices=["lm", "bm25"],
+)
+search_parser.add_argument(
+    "-l", "--lmbda", help="lm lambda parameter (default: 0.3)", type=float, default=0.3
+)
+search_parser.add_argument(
+    "-k", "--bm25k", help="bm25 k parameter (default: 0.9)", type=float, default=0.9
+)
+search_parser.add_argument(
+    "-b", "--bm25b", help="bm25 b parameter (default: 0.4)", type=float, default=0.4
+)
+search_parser.add_argument(
+    "-s",
+    "--start",
+    help="start identifier of query",
+    type=int,
+)
+search_parser.add_argument(
+    "-e",
+    "--end",
+    help="end identifier of query",
+    type=int,
+)
+
+
+vacuum_parser = subparsers.add_parser(
+    "vacuum",
+    help="vacuum index to reclaim disk space",
+    description=zoekeend_vacuum.__doc__,
+)
+vacuum_parser.set_defaults(func=zoekeend_vacuum)
+vacuum_parser.add_argument(
+    "dbname",
+    help="file name of index",
+)
+vacuum_parser.add_argument("-c", "--cluster", action="store_true", help="cluster index")
+
+
+eval_parser = subparsers.add_parser(
+    "eval", help="evaluate run using trec_eval", description=zoekeend_eval.__doc__
+)
+eval_parser.set_defaults(func=zoekeend_eval)
+eval_parser.add_argument(
+    "run",
+    help="trec run file",
+)
+eval_parser.add_argument(
+    "queries",
+    help="ir_dataset queries id or trec qrel file",
+)
+eval_parser.add_argument(
+    "-c",
+    "--complete_rel",
+    action="store_true",
+    help="queries with missing results contribute a value of 0",
+)
+eval_parser.add_argument(
+    "-n",
+    "--ndcg",
+    action="store_true",
+    help="add normalized discounted cummaltive gain (ndcg)",
+)
+eval_parser.add_argument(
+    "-q",
+    "--query_eval",
+    action="store_true",
+    help="give evaluation for each query/topic",
+)
+
+
+index_import_parser = subparsers.add_parser(
+    "index_import", help="import ciff index", description=zoekeend_index_import.__doc__
+)
+index_import_parser.set_defaults(func=zoekeend_index_import)
+index_import_parser.add_argument(
+    "dbname",
+    help="file name of index",
+)
+index_import_parser.add_argument(
+    "ciff_file",
+    help="ciff file",
+)
+index_import_parser.add_argument(
+    "-t",
+    "--tokenizer",
+    help="tokenizer (default: ciff)",
+    default="ciff",
+    choices=["ciff", "duckdb"],
+)
+index_import_parser.add_argument(
+    "-w",
+    "--wordstemmer",
+    help="word stemmer (default: none)",
+    default="none",
+    choices=["none", "porter", "dutch"],
+)
+
+
+index_export_parser = subparsers.add_parser(
+    "index_export", help="export ciff index", description=zoekeend_index_import.__doc__
+)
+index_export_parser.set_defaults(func=zoekeend_index_export)
+index_export_parser.add_argument(
+    "dbname",
+    help="file name of index",
+)
+index_export_parser.add_argument(
+    "ciff_file",
+    help="ciff file",
+)
+index_export_parser.add_argument(
+    "-d",
+    "--description",
+    help="CIFF description (default: Exported from DuckDB)",
+    default="Exported from DuckDB",
+)
+index_export_parser.add_argument(
+    "-b",
+    "--batch-size",
+    help="batch size (default: 1024)",
+    default=1024,
+    type=int,
+)
+
+
+parsed_args = global_parser.parse_args()
+if hasattr(parsed_args, "func"):
+    parsed_args.func(parsed_args)
+else:
+    global_parser.print_usage()
