@@ -1,5 +1,4 @@
 import duckdb
-import math
 from collections import Counter
 
 def create_tokenizer_duckdb(con):

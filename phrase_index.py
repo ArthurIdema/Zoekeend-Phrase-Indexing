@@ -2,8 +2,7 @@ import pathlib
 import sys
 import duckdb
 import ir_datasets
-import collections
-import pandas as pd
+
 
 from phrases_extractor import extract_phrases_pmi_duckdb
 from ze_index import normalize
