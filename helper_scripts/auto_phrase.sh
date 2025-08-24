@@ -7,7 +7,7 @@ OUT="results.txt"
 DATASET="cranfield"
 QUERY="cran"
 STOPWORDS="english"
-MODE="duckdb"
+MODE="phrases"
 CODE="phrase_index.py"
 EXTRACTOR="phrases_extractor.py"
 LIMIT=-1
@@ -23,6 +23,7 @@ MIN_PMI=4.0
 RUN_ID=$(date +"%Y%m%d_%H%M%S")
 RESULTS_DIR="results/$RUN_ID"
 
+cd ..
 
 # Step 1: Build the index
 python $CODE --db "$DB" --dataset "$DATASET" --stopwords "$STOPWORDS" --mode "$MODE" --limit "$LIMIT" --min-freq "$MIN_FREQ" --min-pmi "$MIN_PMI"

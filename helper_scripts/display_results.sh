@@ -2,7 +2,7 @@
 
 echo -e "RUN_ID\tMODE\tSTOPWORDS\tMIN_FREQ\tMIN_PMI\tMAP\tPOSTINGS_COST\tDICT_SIZE\tTERMS_SIZE\tNGRAMS\tAVGDL\tSUMDF"
 
-for dir in ../results/*; do
+for dir in ../results_new_postings/*; do
     [ -d "$dir" ] || continue
     SETTINGS="$dir/settings.txt"
     EVAL="$dir/eval.txt"

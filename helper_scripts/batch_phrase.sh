@@ -3,6 +3,7 @@ set -e
 
 DB_BASE="database"
 OUT_BASE="results"
+RESULTS_BASE="results_new_postings"
 DATASET="cranfield"
 QUERY="cran"
 INDEXER="phrase_index.py"
@@ -10,8 +11,8 @@ INDEXER="phrase_index.py"
 STOPWORDS_LIST=("english" "none")
 MODE_LIST=("duckdb" "phrases")
 LIMIT_LIST=(-1)
-MIN_FREQ_LIST=(4 5 6 7 9 10 11)
-MIN_PMI_LIST=(5 6 7 8 9 10 11 12 13 14)
+MIN_FREQ_LIST=(0 1 2 4 5 6 7 8 9 10 11 16 24 48)
+MIN_PMI_LIST=(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 24 48)
 
 cd ..
 
@@ -34,7 +35,7 @@ for STOPWORDS in "${STOPWORDS_LIST[@]}"; do
 
             # Timestamped results directory
             RUN_ID=$(date +"%Y%m%d_%H%M%S")_${MODE}_${STOPWORDS}_${LIMIT}_${MIN_FREQ}_${MIN_PMI}
-            RESULTS_DIR="results/$RUN_ID"
+            RESULTS_DIR="$RESULTS_BASE/$RUN_ID"
             mkdir -p "$RESULTS_DIR"
 
             # Step 1: Build the index

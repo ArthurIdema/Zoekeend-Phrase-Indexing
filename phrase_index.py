@@ -83,7 +83,7 @@ def create_lm(con, stemmer):
            SELECT docs.name AS docname, LN(MAX(doc_len)) + sum(subscore) AS score FROM subscores, fts_main_documents.docs AS docs WHERE subscores.docid = docs.docid GROUP BY docs.name
         ),
         postings_cost AS (
-           SELECT COUNT(DISTINCT docid) AS cost FROM qterms
+           SELECT COUNT(*) AS cost FROM term_tf
         )
         SELECT docname, score, (SELECT cost FROM postings_cost) AS postings_cost FROM scores
         );
