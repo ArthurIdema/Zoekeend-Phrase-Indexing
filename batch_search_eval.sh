@@ -1,28 +1,32 @@
 #!/bin/bash
-# Batch search and evaluation for Zoekeend results
-# Usage: ./batch_search_eval.sh <results_dir>
+# Usage: ./batch_search_eval.sh <results_dir> <queries_dir> <qrels_file>
 
-if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 <results_dir>"
+if [ "$#" -ne 3 ]; then
+    echo "Usage: $0 <results_dir> <queries_dir> <qrels_file>"
     exit 1
 fi
 
 RESULTS_DIR="$1"
-QUERIES_FILE="cranfield_queries.tsv"
-QRELS_FILE="cranfield_qrels.tsv"
+QUERIES_DIR="$2"
+QRELS_FILE="$3"
 ZOEKEEND_PATH="./zoekeend"
 
-find "$RESULTS_DIR" -name "*.db" | while read DB_FILE; do
-    BASE=$(basename "$DB_FILE" .db)
-    RESULTS_FILE="$RESULTS_DIR/${BASE}_results.txt"
-    EVAL_FILE="$RESULTS_DIR/${BASE}_eval.txt"
+for QUERIES_FILE in "$QUERIES_DIR"/*.tsv; do
+    QUERY_BASE=$(basename "$QUERIES_FILE" .tsv)
+    OUTDIR="$RESULTS_DIR/$QUERY_BASE"
+    mkdir -p "$OUTDIR"
 
-    echo "Running search for $DB_FILE..."
-    "$ZOEKEEND_PATH" search "$DB_FILE" "$QUERIES_FILE" -o "$RESULTS_FILE"
+    find "$RESULTS_DIR" -name "*.db" | while read DB_FILE; do
+        BASE=$(basename "$DB_FILE" .db)
+        RESULTS_FILE="$OUTDIR/${BASE}_results.txt"
+        EVAL_FILE="$OUTDIR/${BASE}_eval.txt"
 
-    echo "Running evaluation for $RESULTS_FILE..."
-    "$ZOEKEEND_PATH" eval "$RESULTS_FILE" "$QRELS_FILE" > "$EVAL_FILE"
+        echo "Running search for $DB_FILE with $QUERIES_FILE..."
+        "$ZOEKEEND_PATH" search "$DB_FILE" "$QUERIES_FILE" -o "$RESULTS_FILE"
 
+        echo "Running evaluation for $RESULTS_FILE..."
+        "$ZOEKEEND_PATH" eval "$RESULTS_FILE" "$QRELS_FILE" > "$EVAL_FILE"
+    done
 done
 
 echo "All searches and evaluations completed."
