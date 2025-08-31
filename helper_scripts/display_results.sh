@@ -20,7 +20,7 @@ for dir in ../results_new_postings/*; do
         SUMDF=$(duckdb "$DB" -csv -noheader "SELECT sumdf FROM fts_main_documents.stats;")
         # Get eval from cranfield_queries_half1 where name matches DB
         DB_BASENAME=$(basename "$DB" .db)
-        EVAL_HALF1="../results_new_postings/cranfield_queries_half2/${DB_BASENAME}_eval.txt"
+        EVAL_HALF1="../results_new_postings/cranfield_queries_with_2_bigrams/${DB_BASENAME}_eval.txt"
         if [[ -f "$EVAL_HALF1" ]]; then
             MAP=$(grep -E '^map[[:space:]]+all' "$EVAL_HALF1" | awk '{print $3}')
             POSTINGS_COST=$(grep '^Average cost in postings:' "$EVAL_HALF1" | awk '{print $5}')
