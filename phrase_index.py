@@ -159,7 +159,6 @@ def create_tokenizer_duckdb(con):
         );
     """)
 
-
 def create_tokenizer_ciff(con, fts_schema="fts_main_documents"):
     con.sql(f"""
         CREATE TABLE IF NOT EXISTS {fts_schema}.dict (termid BIGINT, term TEXT, df BIGINT);
@@ -190,7 +189,7 @@ def create_tokenizer_ciff(con, fts_schema="fts_main_documents"):
 def create_stopwords_table(con, fts_schema="fts_main_documents", stopwords='none'):
     """
     Create the stopwords table.
-    If stopwords is 'english', it will create a table with English stopwords.
+    If stopwords is 'english', it will create a table with English stopwords. 
     If stopwords is 'none', it will create an empty table.
     """
     con.sql(f"DROP TABLE IF EXISTS {fts_schema}.stopwords;")
@@ -252,15 +251,17 @@ def create_terms_table(con, fts_schema="fts_main_documents", input_schema="main"
     Assumes the table fts_main_documents.dict already exists.
     Adds a fieldid and termid column for compatibility with fielded search macros.
     """
-    # Cleanup input text removing special characters
+    # Cleanup input text using the same regex as DuckDB's tokenizer
     con.sql(f"""
         CREATE OR REPLACE TABLE {fts_schema}.cleaned_docs AS
         SELECT
-            did,
-            regexp_replace(content, '[0-9!@#$%^&*()_+={{}}\\[\\]:;<>,.?~\\\\/\\|''''"`-]+', ' ', 'g') AS content
+            {input_id},
+            regexp_replace(lower(strip_accents(CAST({input_val} AS VARCHAR))),
+                '[0-9!@#$%^&*()_+={{}}\\[\\]:;<>,.?~\\\\/\\|''''"`-]+', ' ', 'g') AS content,
         FROM {input_schema}.{input_table}
     """)
 
+    # Use the ciff tokenizer to find bigrams and unigrams
     con.sql(f"""
         CREATE OR REPLACE TABLE {fts_schema}.terms AS (
             SELECT
@@ -270,7 +271,7 @@ def create_terms_table(con, fts_schema="fts_main_documents", input_schema="main"
             FROM (
                 SELECT
                     row_number() OVER (ORDER BY (SELECT NULL)) AS docid,
-                    unnest({fts_schema}.tokenize({input_val})) AS term
+                    unnest({fts_schema}.tokenize(content)) AS term
                 FROM {fts_schema}.cleaned_docs
             ) AS t
             JOIN {fts_schema}.dict d ON t.term = d.term

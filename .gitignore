@@ -5,6 +5,10 @@ cranfield.qrels
 cranfieldoutput
 /duckdb-fts-main/
 /trec_eval/
+/spreadsheets/
+*.png
+plot*
+*lock*
 *.db
 *.ciff
 output*.txt
