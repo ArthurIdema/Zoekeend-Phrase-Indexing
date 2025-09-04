@@ -270,7 +270,7 @@ def create_terms_table(con, fts_schema="fts_main_documents", input_schema="main"
                 t.docid
             FROM (
                 SELECT
-                    row_number() OVER (ORDER BY (SELECT NULL)) AS docid,
+                    row_number() OVER () AS docid,
                     unnest({fts_schema}.tokenize(content)) AS term
                 FROM {fts_schema}.cleaned_docs
             ) AS t
