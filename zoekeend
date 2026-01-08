@@ -111,6 +111,7 @@ def zoekeend_search(args):
             fileout=args.out,
             startq=args.start,
             endq=args.end,
+            verbose=args.verbose,
         )
     except FileNotFoundError:
         fatal(f"Error: queryset '{args.queries}' does not exist.")
@@ -163,10 +164,9 @@ def zoekeend_index_import(args):
         ze_index_import.ciff_import(
             args.dbname,
             args.ciff_file,
-            tokenizer=args.tokenizer,
-            stemmer=args.wordstemmer,
-        )
-    except ValueError as e:
+            metadata_file=args.meta, tokenizer=args.tokenizer,
+            stemmer=args.wordstemmer)
+    except (ValueError, FileNotFoundError, FileExistsError) as e:
         fatal("Error in CIFF import: " + str(e))
 
 
@@ -492,6 +492,12 @@ search_parser.add_argument(
     type=int,
 )
 
+search_parser.add_argument(
+    '-v', '--verbose',
+    help='print query statistics',
+    action='store_true'
+)
+
 
 vacuum_parser = subparsers.add_parser(
     "vacuum",
@@ -563,6 +569,10 @@ index_import_parser.add_argument(
     help="word stemmer (default: none)",
     default="none",
     choices=["none", "porter", "dutch"],
+)
+index_import_parser.add_argument(
+    '-m', '--meta',
+    help='metadata parquet file with "did" identifiers',
 )
 
 

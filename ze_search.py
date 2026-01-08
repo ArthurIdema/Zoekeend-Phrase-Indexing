@@ -28,6 +28,21 @@ def duckdb_search_lm(con, query, limit):
 #     """
 #     return con.execute(sql, [query, limit]).fetchall()
 
+def duckdb_print_query(con, query):
+    sql = """
+        WITH stemmer AS (
+          SELECT stemmer
+          FROM fts_main_documents.stats
+        ), tokens AS (
+          SELECT stem(unnest(fts_main_documents.tokenize($1)), stemmer) AS term
+          FROM stemmer
+        )
+        SELECT dict.term, df
+        FROM fts_main_documents.dict AS dict, tokens
+        WHERE tokens.term = dict.term
+    """
+    return con.execute(sql, [query]).fetchall()
+
 def duckdb_search_bm25(con, query, limit, b, k):
     sql = """
         SELECT did, score
@@ -66,7 +81,7 @@ def get_queries(query_tag):
 
 def search_run(db_name, query_tag, matcher='lm', run_tag=None,
                b=0.75, k=1.2, limit=1000, fileout=None,
-               startq=None, endq=None):
+               startq=None, endq=None, verbose=False):
     con = duckdb.connect(db_name, read_only=True)
     if fileout:
         file = open(fileout, "w")
@@ -83,6 +98,9 @@ def search_run(db_name, query_tag, matcher='lm', run_tag=None,
             q_string = query.title
         else:
             q_string = query.text
+        if verbose:
+           print(q_string, end='', file=sys.stderr)
+           print(duckdb_print_query(con, q_string), file=sys.stderr)
         if matcher == 'lm':
             hits = duckdb_search_lm(con, q_string, limit)
         elif matcher == 'bm25':

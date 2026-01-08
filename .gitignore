@@ -11,6 +11,11 @@ plot*
 *lock*
 *.db
 *.ciff
+*.csv
+*.sync*
+*.log
+/trec_eval/
+/try-scipy/
 output*.txt
 results*.txt
 *.txt
