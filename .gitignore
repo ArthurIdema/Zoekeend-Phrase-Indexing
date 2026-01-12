@@ -11,7 +11,12 @@ plot*
 *lock*
 *.db
 *.ciff
-*.csv
+combined*.csv
+comparison*.csv
+no*.csv
+output*.csv
+p*.csv
+results*.csv
 *.sync*
 *.log
 /trec_eval/

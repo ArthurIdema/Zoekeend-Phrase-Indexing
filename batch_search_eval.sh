@@ -1,4 +1,5 @@
 #!/bin/bash
+# This script can be used to run search and evaluation over existing databases in a results directory
 # Usage: ./batch_search_eval.sh <results_dir> <queries_dir> <qrels_file>
 
 if [ "$#" -ne 3 ]; then

@@ -1,4 +1,5 @@
 #!/bin/bash
+# This script can be used to run an automated zoekeend indexing, searching and evaluation process (no bigrams)
 set -e
 
 # Settings

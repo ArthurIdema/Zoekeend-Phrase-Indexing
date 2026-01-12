@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-
+# This script can be used to run an automated CIFF indexing, searching and evaluation process (with bigrams)
 # Settings
 DB="database.db"
 OUT="results.txt"

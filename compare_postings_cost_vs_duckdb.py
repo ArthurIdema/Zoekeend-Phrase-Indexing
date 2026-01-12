@@ -1,5 +1,6 @@
 import pandas as pd
 from pathlib import Path
+# This script is a two tailed pairwise sign test comparing Cost in Postings against a baseline with min_pmi=24
 
 try:
 	from scipy.stats import binomtest

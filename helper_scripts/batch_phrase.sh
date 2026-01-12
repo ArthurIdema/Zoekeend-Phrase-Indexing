@@ -1,4 +1,6 @@
 #!/bin/bash
+# This script can be used to run a batch of phrase indexing experiments with varying parameters
+# Like the minimum frequency and minimum PMI thresholds, to use stopwords or not etc.
 set -e
 
 DB_BASE="database"

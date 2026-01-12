@@ -1,5 +1,6 @@
 import pandas as pd
 from pathlib import Path
+# This script is a two tailed pairwise sign test comparing MAP results against a baseline with min_pmi=24
 
 try:
 	from scipy.stats import binomtest

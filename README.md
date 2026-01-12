@@ -15,4 +15,9 @@ Run `python3 phrase_index.py` with any of the parameters listed below:
 
 - `./batch_phrase.sh` can be used to create the results using multiple different variables in one go.
 
-- And display_results.sh can be used to display the evaluation metrics of all previous results. (So MAP, CiP, dictionary size, terms size, number of phrases, AVGDL and SUMDF)
+- And `display_results.sh` can be used to display the evaluation metrics of all previous results. (So MAP, CiP, dictionary size, terms size, number of phrases, AVGDL and SUMDF)
+
+### Statistical Analysis and Comparison
+- **[compare_phrases_vs_duckdb.py](compare_phrases_vs_duckdb.py)** - Performs two-tailed pairwise sign test comparing MAP (Mean Average Precision) results between phrase-based and baseline approaches. Uses min_pmi=24 as baseline. Requires scipy for statistical testing.
+
+- **[compare_postings_cost_vs_duckdb.py](compare_postings_cost_vs_duckdb.py)** - Similar to above but compares Cost in Postings (CiP) metric instead of MAP. Evaluates computational efficiency of different indexing approaches.

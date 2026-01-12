@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# This script can be used to display results (CiP, MAP, etc.) from a batch of experiments, given a folder
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
